@@ -1,3 +1,4 @@
 #!/bin/sh
 # Stands in for the editor of `amh task edit`: appends the message file to the task file copy.
+[ -z "$(tail -c1 "$1")" ] || printf '\n' >>"$1"
 printf '\n' >>"$1" && cat "$OMNIGENT_MESSAGE" >>"$1"

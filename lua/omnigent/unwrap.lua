@@ -7,6 +7,9 @@ local M = {}
 --- whitespace the terminal adds, and Markdown marks the harness renders away.
 local IGNORED = "[%s%*`#_>|-]"
 
+--- Marks a harness draws in front of a message or list item.
+local BULLETS = { "⏺", "●", "•" }
+
 --- Drop ignored bytes and harness bullets from `text`.
 --- Returns the kept bytes, and for each kept byte its index in `text`.
 local function squeeze(text)
@@ -25,7 +28,10 @@ end
 --- `sources` are transcript texts, newest first.
 --- Returns the passage as written by the agent, or `nil` when none matches.
 function M.locate(selection, sources)
-    local needle = squeeze(selection:gsub("[⏺●•]", ""))
+    for _, bullet in ipairs(BULLETS) do
+        selection = selection:gsub(bullet, "")
+    end
+    local needle = squeeze(selection)
     if needle == "" then
         return nil
     end
@@ -63,7 +69,10 @@ function M.join(lines)
         local line = raw:gsub("%s+$", "")
         local text = line:sub(indent + 1):gsub("^%s+", "")
         local word = text:match("^%S+") or ""
-        local starts_item = text:match("^[-*+•●⏺]%s") or text:match("^%d+[.)]%s")
+        local starts_item = text:match("^[-*+]%s") or text:match("^%d+[.)]%s")
+        for _, bullet in ipairs(BULLETS) do
+            starts_item = starts_item or vim.startswith(text, bullet)
+        end
         local continues = #out > 0
             and out[#out] ~= ""
             and text ~= ""

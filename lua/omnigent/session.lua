@@ -153,7 +153,12 @@ function M.send()
     if text == "" then
         return fail("nothing to send")
     end
+    if vim.b[buf].omnigent_sending then
+        return fail("still sending")
+    end
+    vim.b[buf].omnigent_sending = true
     local function sent(err)
+        vim.b[buf].omnigent_sending = false
         if err then
             return fail(err)
         end
@@ -211,7 +216,7 @@ function M.spawn()
             end
             vim.ui.select(config.tools, { prompt = "Tool" }, function(tool)
                 if tool then
-                    M.compose({ spawn = { name = name, dir = dir, tool = tool } })
+                    M.compose({ spawn = { name = name, dir = vim.fn.expand(dir), tool = tool } })
                 end
             end)
         end)

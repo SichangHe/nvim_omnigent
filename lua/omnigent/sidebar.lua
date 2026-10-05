@@ -36,8 +36,9 @@ local function render()
     local groups = {}
     for _, session in ipairs(M.sessions) do
         if not session.archived then
-            groups[session.status] = groups[session.status] or {}
-            table.insert(groups[session.status], session)
+            local status = session.status or "unknown"
+            groups[status] = groups[status] or {}
+            table.insert(groups[status], session)
         end
     end
     local order = vim.list_extend({}, config.status_order)
@@ -76,8 +77,11 @@ local function render()
     end
 end
 
---- Fetch sessions and tasks again, then redraw.
+--- Fetch sessions and tasks again, then redraw. Stops the timer once the sidebar is gone.
 function M.refresh()
+    if not window() then
+        return M.timer:stop()
+    end
     api.request(config.server, "GET", "/v1/sessions?limit=1000", nil, function(err, reply)
         if err then
             return vim.notify("omnigent: " .. err, vim.log.levels.ERROR)
@@ -124,6 +128,9 @@ function M.toggle()
     local win = window()
     if win then
         M.timer:stop()
+        if #vim.api.nvim_tabpage_list_wins(0) == 1 then
+            vim.cmd("vertical new")
+        end
         return vim.api.nvim_win_close(win, false)
     end
     if not (M.buf and vim.api.nvim_buf_is_valid(M.buf)) then

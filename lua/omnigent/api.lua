@@ -21,6 +21,9 @@ function M.request(server, method, path, body, on_done)
         if err then
             return on_done(err)
         end
+        if stdout == "" then
+            return on_done(nil, nil)
+        end
         local ok, decoded = pcall(vim.json.decode, stdout, { luanil = { object = true, array = true } })
         on_done(not ok and decoded or nil, ok and decoded or nil)
     end)

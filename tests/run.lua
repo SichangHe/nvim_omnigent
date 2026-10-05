@@ -14,6 +14,8 @@ end
 local source = "Intro.\n\nThe **quick** brown fox jumps over the `lazy` dog and keeps running far away.\n- first item\n- second item"
 local shown = { "  The quick brown fox jumps over", "  the lazy dog and keeps running", "  far away.", "  - first item" }
 check("locate", unwrap.locate(table.concat(shown, "\n"), { "other", source }), "The **quick** brown fox jumps over the `lazy` dog and keeps running far away.\n- first item")
+check("locate curly quote", unwrap.locate("● It’s a\n  test", { "It’s a test — done" }), "It’s a test")
+check("join bullets", unwrap.join({ "• first item that is quite long here", "• second" }), { "• first item that is quite long here", "• second" })
 check("locate miss", unwrap.locate("absent text", { source }), nil)
 check("join", unwrap.join(shown), { "The quick brown fox jumps over the lazy dog and keeps running far away.", "- first item" })
 check("join keeps short lines", unwrap.join({ "one", "two", "", "a much longer line here" }), { "one", "two", "", "a much longer line here" })
