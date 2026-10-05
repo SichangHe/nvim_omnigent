@@ -1,0 +1,3 @@
+#!/bin/sh
+# Stands in for the editor of `amh task edit`: appends the message file to the task file copy.
+printf '\n' >>"$1" && cat "$OMNIGENT_MESSAGE" >>"$1"
