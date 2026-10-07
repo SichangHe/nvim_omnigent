@@ -15,8 +15,10 @@ modules in `lua/omnigent/`
     - timer runs only while the sidebar is shown
 - `session`: acts on one agent
     - target: `{ session }` or `{ spawn = { name, dir, tool } }`, kept in `b:omnigent_target` of terminal and compose buffers
-    - `open`: `GET .../resources/terminals` gives `tmux_socket` and `tmux_target`; a terminal buffer runs `tmux attach`
-        - assumption: Neovim runs on the machine that hosts the tmux sockets
+    - `open`: `GET .../resources/terminals` gives `tmux_socket` and `tmux_target`
+        - socket exists here (or `config.attach = "tmux"`): the terminal buffer runs `tmux attach`
+        - else `bin/omnigent-attach WS_URL`: stdlib-only Python websocket client; server sends output as binary frames, client sends keys as binary frames and `{"type":"resize"}` text frames on SIGWINCH; URL is `/v1/sessions/ID/resources/terminals/TID/attach` on the server
+            - write attach needs the session owner; local mode has no auth
         - a parked agent has no running terminal; a message wakes it
     - `compose`: one `acwrite` buffer per target; `BufWriteCmd` sends, so `:w` works
     - `send`

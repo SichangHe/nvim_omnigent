@@ -4,7 +4,15 @@
 
 Use [Omnigent](https://github.com/omnigent-ai/omnigent) agents from Neovim: a sidebar of sessions in the web GUI's sections (Pinned, projects, Sessions), the agent's own terminal in the main window, and a normal buffer for writing messages.
 
-Needs Neovim 0.11+, `curl`, `tmux`, and a running Omnigent server on the same machine. `amh`, the agent manager helper, is used when installed.
+Needs Neovim 0.11+, `curl`, `python3`, and an Omnigent server reachable at the configured URL. On the machine that runs the agents, the terminal attaches through `tmux`; elsewhere, for example on a laptop with the server's port forwarded, it attaches through the server's websocket. `amh`, the agent manager helper, is used when installed.
+
+To use it from a laptop, forward the server port and set `server` to the forwarded address:
+
+```sh
+ssh -L 6767:localhost:6767 the-server
+```
+
+Starting, closing and messaging agents through `amh` only work where `amh` runs.
 
 ## Install
 

@@ -1,0 +1,138 @@
+#!/usr/bin/env python3
+"""Attach this terminal to an Omnigent terminal over its websocket.
+
+Usage: `omnigent-attach WS_URL [--read-only]`. Needs only the Python standard library.
+Terminal output arrives as binary frames and goes to stdout; keystrokes go up as
+binary frames; a window size change sends a `resize` text frame.
+"""
+import base64
+import json
+import os
+import select
+import signal
+import socket
+import ssl
+import struct
+import sys
+import termios
+import tty
+import urllib.parse
+
+
+def connect(url):
+    """Open a websocket to `url`; returns the socket after the handshake."""
+    parts = urllib.parse.urlsplit(url)
+    port = parts.port or (443 if parts.scheme == "wss" else 80)
+    sock = socket.create_connection((parts.hostname, port))
+    if parts.scheme == "wss":
+        sock = ssl.create_default_context().wrap_socket(sock, server_hostname=parts.hostname)
+    path = parts.path + ("?" + parts.query if parts.query else "")
+    key = base64.b64encode(os.urandom(16)).decode()
+    sock.sendall(
+        f"GET {path} HTTP/1.1\r\nHost: {parts.hostname}:{port}\r\nUpgrade: websocket\r\n"
+        f"Connection: Upgrade\r\nSec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n\r\n".encode()
+    )
+    reply = b""
+    while b"\r\n\r\n" not in reply:
+        chunk = sock.recv(4096)
+        if not chunk:
+            raise ConnectionError("server closed during handshake")
+        reply += chunk
+    head, rest = reply.split(b"\r\n\r\n", 1)
+    if b" 101 " not in head.split(b"\r\n", 1)[0]:
+        raise ConnectionError(head.decode(errors="replace").splitlines()[0])
+    return sock, rest
+
+
+def send_frame(sock, opcode, payload):
+    """Send one masked client frame."""
+    mask = os.urandom(4)
+    length = len(payload)
+    head = bytes([0x80 | opcode])
+    if length < 126:
+        head += bytes([0x80 | length])
+    elif length < 1 << 16:
+        head += bytes([0x80 | 126]) + struct.pack("!H", length)
+    else:
+        head += bytes([0x80 | 127]) + struct.pack("!Q", length)
+    sock.sendall(head + mask + bytes(b ^ mask[i % 4] for i, b in enumerate(payload)))
+
+
+class Frames:
+    """Splits the incoming byte stream into (opcode, payload) frames."""
+
+    def __init__(self, buffered):
+        self.buf = buffered
+
+    def feed(self, data):
+        self.buf += data
+        while True:
+            if len(self.buf) < 2:
+                return
+            opcode, length = self.buf[0] & 0x0F, self.buf[1] & 0x7F
+            offset = 2
+            if length == 126:
+                if len(self.buf) < 4:
+                    return
+                (length,) = struct.unpack("!H", self.buf[2:4])
+                offset = 4
+            elif length == 127:
+                if len(self.buf) < 10:
+                    return
+                (length,) = struct.unpack("!Q", self.buf[2:10])
+                offset = 10
+            if len(self.buf) < offset + length:
+                return
+            payload = self.buf[offset : offset + length]
+            self.buf = self.buf[offset + length :]
+            yield opcode, payload
+
+
+def main():
+    url, read_only = sys.argv[1], "--read-only" in sys.argv[2:]
+    sock, rest = connect(url)
+    frames = Frames(rest)
+    fd = sys.stdin.fileno()
+    saved = termios.tcgetattr(fd)
+    tty.setraw(fd)
+
+    def resize(*_):
+        size = os.get_terminal_size(sys.stdout.fileno())
+        send_frame(sock, 1, json.dumps({"type": "resize", "cols": size.columns, "rows": size.lines}).encode())
+
+    signal.signal(signal.SIGWINCH, resize)
+    resize()
+    try:
+        while True:
+            try:
+                ready, _, _ = select.select([sock, fd], [], [])
+            except InterruptedError:
+                continue
+            if sock in ready:
+                data = sock.recv(1 << 16)
+                if not data:
+                    break
+                for opcode, payload in frames.feed(data):
+                    if opcode == 2:
+                        os.write(sys.stdout.fileno(), payload)
+                    elif opcode == 9:
+                        send_frame(sock, 10, payload)
+                    elif opcode == 8:
+                        return
+            if fd in ready:
+                keys = os.read(fd, 4096)
+                if not keys:
+                    break
+                if not read_only:
+                    send_frame(sock, 2, keys)
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, saved)
+        sock.close()
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (ConnectionError, OSError) as error:
+        print(f"omnigent-attach: {error}", file=sys.stderr)
+        sys.exit(1)

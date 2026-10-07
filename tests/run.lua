@@ -41,6 +41,15 @@ if live then
     vim.wait(1500)
     local buf = session.terminals[live.id]
     check("terminal shows text", buf and #vim.trim(table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "")) > 0, true)
+    vim.api.nvim_buf_delete(buf, { force = true })
+    require("omnigent.config").attach = "websocket"
+    session.open(live)
+    check("websocket terminal opens", vim.wait(10000, function()
+        return session.terminals[live.id] ~= nil
+    end), true)
+    vim.wait(2500)
+    buf = session.terminals[live.id]
+    check("websocket terminal shows text", buf and #vim.trim(table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "")) > 0, true)
     vim.cmd("normal! ggVG")
     session.reply()
     check("reply quotes into compose", vim.wait(10000, function()

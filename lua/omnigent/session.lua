@@ -11,7 +11,9 @@ local M = {
     composers = {},
 }
 
-local APPEND = vim.fs.joinpath(vim.fs.dirname(debug.getinfo(1, "S").source:sub(2)), "../../bin/omnigent-append")
+local BIN = vim.fs.joinpath(vim.fs.dirname(debug.getinfo(1, "S").source:sub(2)), "../../bin")
+local APPEND = vim.fs.joinpath(BIN, "omnigent-append")
+local ATTACH = vim.fs.joinpath(BIN, "omnigent-attach")
 
 local function fail(err)
     vim.notify("omnigent: " .. err, vim.log.levels.ERROR)
@@ -62,7 +64,16 @@ function M.open(session)
         local win = main_window()
         vim.api.nvim_win_set_buf(win, buf)
         vim.api.nvim_set_current_win(win)
-        vim.fn.jobstart({ "env", "-u", "TMUX", "tmux", "-S", terminal.metadata.tmux_socket, "attach", "-t", terminal.metadata.tmux_target }, {
+        -- 🧑 "Make both work": tmux when its socket is on this machine, else the server's websocket
+        local socket = terminal.metadata.tmux_socket
+        local cmd
+        if config.attach == "tmux" or config.attach == "auto" and socket and vim.uv.fs_stat(socket) then
+            cmd = { "env", "-u", "TMUX", "tmux", "-S", socket, "attach", "-t", terminal.metadata.tmux_target }
+        else
+            local ws = config.server:gsub("^http", "ws") .. "/v1/sessions/" .. session.id .. "/resources/terminals/" .. terminal.id .. "/attach"
+            cmd = { config.python, ATTACH, ws }
+        end
+        vim.fn.jobstart(cmd, {
             term = true,
             on_exit = function()
                 M.terminals[session.id] = nil
