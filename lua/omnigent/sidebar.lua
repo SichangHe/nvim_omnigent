@@ -2,11 +2,16 @@
 local api = require("omnigent.api")
 local config = require("omnigent.config")
 
+--- Session label the web GUI sets when pinning; its value orders the pinned section.
+local PIN_LABEL = "omnigent.pinned"
+
 local M = {
     buf = nil,
     timer = nil,
     --- Sessions as the server lists them.
     sessions = {},
+    --- Projects as the server lists them.
+    projects = {},
     --- Session id to `{ name, status }` of its `amh` task.
     tasks = {},
     --- Sidebar line number to the session shown there.
@@ -27,40 +32,58 @@ function M.session_at_cursor()
     return win and M.rows[vim.api.nvim_win_get_cursor(win)[1]]
 end
 
--- 🧑 "sessions sorted by status in toggleable sidebar"
+-- 🧑 "sessions sorted by status in toggleable sidebar" ... "see exactly what they have instead of guessing"
+--- The sections of the web GUI: `Pinned` in pin order, one per project, then `Sessions`;
+--- newest `updated_at` first inside each; archived sessions hidden.
+local function sections()
+    local pinned, by_project, rest = {}, {}, {}
+    for _, session in ipairs(M.sessions) do
+        local labels = session.labels or {}
+        local project = vim.iter(M.projects):find(function(candidate)
+            return session.project_id == candidate.id or labels.omni_project == candidate.name
+        end)
+        if session.archived then
+        elseif tonumber(labels[PIN_LABEL]) then
+            pinned[#pinned + 1] = session
+        elseif project then
+            by_project[project.name] = by_project[project.name] or {}
+            table.insert(by_project[project.name], session)
+        else
+            rest[#rest + 1] = session
+        end
+    end
+    local function newest_first(list)
+        table.sort(list, function(a, b)
+            return a.updated_at > b.updated_at
+        end)
+        return list
+    end
+    table.sort(pinned, function(a, b)
+        return tonumber(a.labels[PIN_LABEL]) < tonumber(b.labels[PIN_LABEL])
+    end)
+    local out = { { title = "Pinned", sessions = pinned } }
+    for _, project in ipairs(M.projects) do
+        out[#out + 1] = { title = project.name, sessions = newest_first(by_project[project.name] or {}) }
+    end
+    out[#out + 1] = { title = "Sessions", sessions = newest_first(rest) }
+    return out
+end
+
 local function render()
     local win = window()
     if not win then
         return
     end
-    local groups = {}
-    for _, session in ipairs(M.sessions) do
-        if not session.archived then
-            local status = session.status or "unknown"
-            groups[status] = groups[status] or {}
-            table.insert(groups[status], session)
-        end
-    end
-    local order = vim.list_extend({}, config.status_order)
-    for status in pairs(groups) do
-        if not vim.tbl_contains(order, status) then
-            order[#order + 1] = status
-        end
-    end
     local at_cursor = M.session_at_cursor()
     local lines, rows, cursor_line = {}, {}, nil
-    for _, status in ipairs(order) do
-        local group = groups[status]
-        if group then
-            table.sort(group, function(a, b)
-                return a.updated_at > b.updated_at
-            end)
-            lines[#lines + 1] = ("%s (%d)"):format(status, #group)
-            for _, session in ipairs(group) do
+    for _, section in ipairs(sections()) do
+        if #section.sessions > 0 then
+            lines[#lines + 1] = ("%s (%d)"):format(section.title, #section.sessions)
+            for _, session in ipairs(section.sessions) do
                 local task = M.tasks[session.id]
                 lines[#lines + 1] = (session.viewer_unread and " ● " or "   ")
                     .. (session.title or session.id)
-                    .. (task and " [" .. task.status .. "]" or "")
+                    .. " [" .. (session.status or "?") .. (task and ", " .. task.status or "") .. "]"
                 rows[#lines] = session
                 if at_cursor and at_cursor.id == session.id then
                     cursor_line = #lines
@@ -82,12 +105,18 @@ function M.refresh()
     if not window() then
         return M.timer:stop()
     end
-    api.request(config.server, "GET", "/v1/sessions?limit=1000", nil, function(err, reply)
+    api.request(config.server, "GET", "/v1/sessions?limit=1000&sort_by=updated_at&order=desc&kind=default&visibility=all&include_archived=false", nil, function(err, reply)
         if err then
             return vim.notify("omnigent: " .. err, vim.log.levels.ERROR)
         end
         M.sessions = reply.data
         render()
+    end)
+    api.request(config.server, "GET", "/v1/projects", nil, function(err, reply)
+        if not err then
+            M.projects = reply.data
+            render()
+        end
     end)
     api.amh(config.amh, { "agent", "list" }, nil, function(err, stdout)
         if not err then

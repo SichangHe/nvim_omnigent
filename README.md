@@ -2,7 +2,7 @@
 
 (authored by agents unless marked 🧑)
 
-Use [Omnigent](https://github.com/omnigent-ai/omnigent) agents from Neovim: a sidebar of sessions grouped by status, the agent's own terminal in the main window, and a normal buffer for writing messages.
+Use [Omnigent](https://github.com/omnigent-ai/omnigent) agents from Neovim: a sidebar of sessions in the web GUI's sections (Pinned, projects, Sessions), the agent's own terminal in the main window, and a normal buffer for writing messages.
 
 Needs Neovim 0.11+, `curl`, `tmux`, and a running Omnigent server on the same machine. `amh`, the agent manager helper, is used when installed.
 

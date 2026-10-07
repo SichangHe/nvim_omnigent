@@ -10,7 +10,8 @@ modules in `lua/omnigent/`
     - sessions: `GET /v1/sessions`
     - tasks: `amh agent list`, parsed by `api.parse_tasks`; maps session id to task file
         - no `amh`: map stays empty, everything goes through the server
-    - groups by `status` in `config.status_order`, newest `updated_at` first; archived hidden
+    - sections copy the web GUI (read from its bundle, `useSidebarData` chunk): `Pinned` by the numeric label `omnigent.pinned`, one per project from `GET /v1/projects` (membership: `project_id` or label `omni_project`), then `Sessions`; newest `updated_at` first; archived hidden
+        - the GUI does not group by status; status shows per row instead
     - timer runs only while the sidebar is shown
 - `session`: acts on one agent
     - target: `{ session }` or `{ spawn = { name, dir, tool } }`, kept in `b:omnigent_target` of terminal and compose buffers

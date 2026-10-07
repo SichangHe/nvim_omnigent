@@ -2,8 +2,6 @@
 return {
     --- Omnigent server URL.
     server = "http://localhost:6767",
-    --- Sidebar groups from top to bottom; other statuses follow.
-    status_order = { "waiting", "running", "failed", "idle" },
     --- Sidebar refresh period.
     refresh_ms = 5000,
     sidebar_width = 36,

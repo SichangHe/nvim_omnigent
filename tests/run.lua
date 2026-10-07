@@ -28,7 +28,7 @@ vim.cmd("Omnigent toggle")
 check("sidebar fills", vim.wait(10000, function()
     return next(sidebar.rows) ~= nil and next(sidebar.tasks) ~= nil
 end), true)
-check("first line is a status group", vim.api.nvim_buf_get_lines(sidebar.buf, 0, 1, false)[1]:match("^%a+ %(%d+%)$") ~= nil, true)
+check("first line is a section", vim.api.nvim_buf_get_lines(sidebar.buf, 0, 1, false)[1]:match("^.+ %(%d+%)$") ~= nil, true)
 
 local live = vim.iter(sidebar.sessions):find(function(candidate)
     return candidate.status == "running"
